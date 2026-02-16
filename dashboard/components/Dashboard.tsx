@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useRef, useEffect } from 'react'
 import {
   chatStream,
@@ -104,6 +105,8 @@ export default function Dashboard() {
     if (models.length && !models.some((m) => m.value === model)) {
       setModel(models[0].value)
     }
+    // Intentionally omit model/models to avoid reset loops when provider/upstream change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, upstream])
 
 
@@ -216,7 +219,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (view === 'usage') loadUsage()
-  }, [provider, model, customUpstream, customModel])
+  }, [view, provider, model, customUpstream, customModel])
 
   useEffect(() => {
     if (settingsModalOpen && serverSettings) {
@@ -503,7 +506,7 @@ export default function Dashboard() {
                   aria-haspopup="true"
                 >
                   {user.picture ? (
-                    <img src={user.picture} alt="" className="nav-user-avatar" width={32} height={32} />
+                    <Image src={user.picture} alt="" className="nav-user-avatar" width={32} height={32} unoptimized />
                   ) : (
                     <span className="nav-user-initial">{user.email?.charAt(0)?.toUpperCase() || '?'}</span>
                   )}
@@ -513,7 +516,7 @@ export default function Dashboard() {
                     <div className="nav-user-overlay" onClick={() => setNavUserOpen(false)} aria-hidden="true" />
                     <div className="nav-user-dropdown">
                       <div className="nav-user-info">
-                        {user.picture && <img src={user.picture} alt="" className="nav-user-avatar" width={40} height={40} />}
+                        {user.picture && <Image src={user.picture} alt="" className="nav-user-avatar" width={40} height={40} unoptimized />}
                         <div>
                           <div className="nav-user-name">{user.name || user.email}</div>
                           <div className="nav-user-email">{user.email}</div>

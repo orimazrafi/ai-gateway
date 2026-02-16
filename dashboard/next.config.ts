@@ -3,6 +3,11 @@ import type { NextConfig } from 'next'
 const gateway = process.env.GATEWAY_URL ?? 'http://localhost:3002'
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com', pathname: '/**' },
+    ],
+  },
   rewrites: async () => [
     { source: '/v1/:path*', destination: `${gateway}/v1/:path*` },
     { source: '/api/:path*', destination: `${gateway}/api/:path*` },
