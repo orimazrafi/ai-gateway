@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Gateway</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181c;
+      --border: #2a2a30;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #a78bfa;
+      --ok: #22c55e;
+      --err: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1.5rem;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem 0;
+      color: var(--accent);
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 1.5rem;
+    }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    section h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin: 0 0 0.75rem 0;
+    }
+    .health { display: flex; align-items: center; gap: 0.5rem; }
+    .health .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .health .dot.ok { background: var(--ok); }
+    .health .dot.err { background: var(--err); }
+    @keyframes pulse { 50% { opacity: 0.6; } }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: 500; }
+    tr:last-child td { border-bottom: none; }
+    .empty { color: var(--muted); font-style: italic; }
+    .cost-usd { color: var(--accent); }
+    .key-hint { font-size: 0.75rem; color: var(--muted); max-width: 12rem; overflow: hidden; text-overflow: ellipsis; }
+    .preview { font-size: 0.75rem; max-height: 2.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 20rem; }
+    .time { color: var(--muted); font-size: 0.7rem; }
+    .refresh {
+      background: var(--border);
+      color: var(--text);
+      border: none;
+      padding: 0.35rem 0.75rem;
+      border-radius: 4px;
+      font: inherit;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    .refresh:hover { background: var(--accent); color: var(--bg); }
+    .who {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .who strong { color: var(--text); }
+    .test-form { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 0.75rem; }
+    .test-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; color: var(--muted); }
+    .test-form input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.4rem 0.6rem; border-radius: 4px; font: inherit; min-width: 10rem; }
+    .test-form input::placeholder { color: var(--muted); }
+    .test-form button.primary { background: var(--accent); color: var(--bg); border: none; padding: 0.5rem 1rem; border-radius: 4px; font: inherit; cursor: pointer; }
+    .test-form button.primary:hover { filter: brightness(1.1); }
+    .test-form button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .test-result { font-size: 0.8rem; margin-top: 0.5rem; padding: 0.5rem; border-radius: 4px; }
+    .test-result.ok { background: rgba(34,197,94,0.15); color: var(--ok); }
+    .test-result.err { background: rgba(239,68,68,0.15); color: var(--err); }
+  </style>
+</head>
+<body>
+  <h1>AI Gateway</h1>
+  <p class="subtitle">Model routing, cost tracking, rate limiting, prompt log</p>
+
+  <section>
+    <h2>Send test request</h2>
+    <p style="color: var(--muted); font-size: 0.8rem; margin-bottom: 0.75rem;">Pick provider, paste key, choose model — no restart. Usage appears in the tables below.</p>
+    <div class="test-form">
+      <label>
+        Provider
+        <select id="test-provider" onchange="onProviderChange()">
+          <option value="">Default (OpenAI)</option>
+          <option value="https://api.groq.com/openai/v1">Groq (free)</option>
+          <option value="custom">Custom URL…</option>
+        </select>
+      </label>
+      <label id="label-custom-url" style="display: none;">
+        Upstream URL
+        <input type="text" id="test-upstream-url" placeholder="https://api.example.com/v1" />
+      </label>
+      <label>
+        API key
+        <input type="password" id="test-key" placeholder="Paste key (OpenAI or Groq)" />
+      </label>
+      <label id="label-model">
+        Model
+        <select id="test-model">
+          <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+          <option value="gpt-4o-mini">gpt-4o-mini</option>
+          <option value="gpt-4o">gpt-4o</option>
+        </select>
+      </label>
+      <label id="label-custom-model" style="display: none;">
+        Custom model ID
+        <input type="text" id="test-model-custom" placeholder="model-name" />
+      </label>
+      <label>
+        Message
+        <input type="text" id="test-msg" value="Hello from the dashboard" placeholder="Your message" />
+      </label>
+      <button class="primary" id="test-btn" onclick="sendTest()">Send test request</button>
+    </div>
+    <div id="test-result"></div>
+  </section>
+
+  <section>
+    <h2>Status</h2>
+    <div class="health" id="health">
+      <span class="dot" id="health-dot"></span>
+      <span id="health-text">Checking…</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Costs by key</h2>
+    <table>
+      <thead>
+        <tr><th>Key</th><th>Cost (USD)</th></tr>
+      </thead>
+      <tbody id="costs"></tbody>
+    </table>
+    <button class="refresh" onclick="loadCosts()">Refresh</button>
+  </section>
+
+  <section>
+    <h2>Recent requests (prompt log)</h2>
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Model</th><th>Key</th><th>Tokens</th><th>Request</th><th>Response</th></tr>
+      </thead>
+      <tbody id="log"></tbody>
+    </table>
+    <button class="refresh" onclick="loadLog()">Refresh</button>
+  </section>
+
+  <div class="who">
+    <strong>Who uses this?</strong> Your app (or any OpenAI-compatible client) sends requests to this gateway instead of directly to OpenAI. The gateway forwards to the upstream API and adds routing, rate limits, cost tracking, and logging. Use <code>http://localhost:3002/v1/chat/completions</code> as the base URL in your client.
+  </div>
+
+  <script>
+    const base = window.location.origin;
+
+    async function loadHealth() {
+      const el = document.getElementById('health');
+      const dot = document.getElementById('health-dot');
+      const text = document.getElementById('health-text');
+      try {
+        const r = await fetch(base + '/health');
+        const data = await r.json();
+        dot.className = 'dot ' + (data.status === 'ok' ? 'ok' : 'err');
+        text.textContent = data.status === 'ok' ? 'Gateway OK' : 'Unhealthy';
+      } catch (e) {
+        dot.className = 'dot err';
+        text.textContent = 'Unreachable: ' + e.message;
+      }
+    }
+
+    async function loadCosts() {
+      const tbody = document.getElementById('costs');
+      try {
+        const r = await fetch(base + '/api/costs');
+        const data = await r.json();
+        const entries = Object.entries(data);
+        if (entries.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="2" class="empty">No usage yet. Send requests to /v1/chat/completions to see costs here.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = entries
+          .sort((a, b) => b[1] - a[1])
+          .map(([key, usd]) => `<tr><td class="key-hint" title="${escapeHtml(key)}">${escapeHtml(key)}</td><td class="cost-usd">$${Number(usd).toFixed(4)}</td></tr>`)
+          .join('');
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="2" class="empty">Failed to load: ' + escapeHtml(e.message) + '</td></tr>';
+      }
+    }
+
+    async function loadLog() {
+      const tbody = document.getElementById('log');
+      try {
+        const r = await fetch(base + '/api/prompt-log?limit=50');
+        const data = await r.json();
+        if (!data.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty">No requests logged yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map(entry => `
+          <tr>
+            <td class="time">${formatTime(entry.ts)}</td>
+            <td>${escapeHtml(entry.model)}</td>
+            <td class="key-hint" title="${escapeHtml(entry.keyHint)}">${escapeHtml(entry.keyHint)}</td>
+            <td>${entry.promptTokens ?? '–'}/${entry.completionTokens ?? '–'}</td>
+            <td class="preview" title="${escapeHtml(entry.requestPreview || '')}">${escapeHtml(entry.requestPreview || '–')}</td>
+            <td class="preview" title="${escapeHtml(entry.responsePreview || '')}">${escapeHtml(entry.responsePreview || '–')}</td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load: ' + escapeHtml(e.message) + '</td></tr>';
+      }
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function formatTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString() + ' ' + d.toLocaleDateString();
+    }
+
+    const MODELS_BY_PROVIDER = {
+      '': [
+        { value: 'gpt-3.5-turbo', label: 'gpt-3.5-turbo' },
+        { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
+        { value: 'gpt-4o', label: 'gpt-4o' },
+      ],
+      'https://api.groq.com/openai/v1': [
+        { value: 'llama-3.1-8b-instant', label: 'llama-3.1-8b-instant' },
+        { value: 'llama-3.1-70b-versatile', label: 'llama-3.1-70b-versatile' },
+        { value: 'llama-3.3-70b-versatile', label: 'llama-3.3-70b-versatile' },
+        { value: 'mixtral-8x7b-32768', label: 'mixtral-8x7b-32768' },
+      ],
+      'custom': [],
+    };
+
+    function onProviderChange() {
+      const providerSel = document.getElementById('test-provider');
+      const customUrlLabel = document.getElementById('label-custom-url');
+      const customModelLabel = document.getElementById('label-custom-model');
+      const modelSel = document.getElementById('test-model');
+      const customModelInput = document.getElementById('test-model-custom');
+      const v = providerSel.value;
+
+      customUrlLabel.style.display = v === 'custom' ? 'flex' : 'none';
+      customModelLabel.style.display = v === 'custom' ? 'flex' : 'none';
+      document.getElementById('label-model').style.display = v === 'custom' ? 'none' : 'flex';
+
+      if (v === 'custom') {
+        return;
+      }
+      const options = MODELS_BY_PROVIDER[v] || MODELS_BY_PROVIDER[''];
+      modelSel.innerHTML = options.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+      if (options.length) modelSel.value = options[0].value;
+    }
+
+    async function sendTest() {
+      const btn = document.getElementById('test-btn');
+      const resultEl = document.getElementById('test-result');
+      const provider = document.getElementById('test-provider').value;
+      const customUrl = document.getElementById('test-upstream-url').value.trim();
+      const key = document.getElementById('test-key').value.trim();
+      const model = provider === 'custom'
+        ? document.getElementById('test-model-custom').value.trim()
+        : document.getElementById('test-model').value;
+      if (!model) {
+        resultEl.className = 'test-result err';
+        resultEl.textContent = 'Please pick or enter a model.';
+        return;
+      }
+      const msg = document.getElementById('test-msg').value.trim() || 'Hello';
+
+      resultEl.innerHTML = '';
+      resultEl.className = 'test-result';
+      btn.disabled = true;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (key) headers['Authorization'] = 'Bearer ' + key;
+      const upstream = provider === 'custom' ? customUrl : provider;
+      if (upstream) headers['X-AI-Gateway-Upstream'] = upstream;
+
+      try {
+        const r = await fetch(base + '/v1/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: msg }],
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          resultEl.className = 'test-result err';
+          resultEl.textContent = (data.error?.message || data.message || r.statusText) || 'Request failed';
+          return;
+        }
+        const cost = r.headers.get('X-Cost-USD');
+        resultEl.className = 'test-result ok';
+        resultEl.textContent = 'Success. Cost: $' + (cost || '–') + ' — Refreshing costs and log below.';
+        loadCosts();
+        loadLog();
+      } catch (e) {
+        resultEl.className = 'test-result err';
+        resultEl.textContent = e.message || 'Request failed';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function refreshAll() {
+      loadHealth();
+      loadCosts();
+      loadLog();
+    }
+
+    onProviderChange();
+    refreshAll();
+    setInterval(loadHealth, 10000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install gateway dependencies
+        run: npm ci
+
+      - name: Gateway typecheck
+        run: npm run ts
+
+      - name: Gateway test
+        run: npm run test
+
+      - name: Gateway build
+        run: npm run build
+
+      - name: Gateway health check
+        run: |
+          node build/index.js &
+          SERVER_PID=$!
+          sleep 3
+          curl -sf http://localhost:3002/health
+          kill $SERVER_PID 2>/dev/null || true
+
+      - name: Install dashboard dependencies
+        working-directory: dashboard
+        run: npm ci
+
+      - name: Dashboard lint
+        working-directory: dashboard
+        run: npm run lint
+
+      - name: Dashboard build
+        working-directory: dashboard
+        run: npm run build
+        env:
+          GATEWAY_URL: http://localhost:3002
+
+      - name: Upload gateway build
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-build
+          path: |
+            build/
+            package.json
+            package-lock.json
+
+      - name: Upload dashboard build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-build
+          path: |
+            dashboard/.next/
+            dashboard/package.json
+            dashboard/package-lock.json
+            dashboard/public/
+            dashboard/next.config.ts
+
+  upload-app:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: Download gateway build
+        uses: actions/download-artifact@v4
+        with:
+          name: gateway-build
+
+      - name: Download dashboard build
+        uses: actions/download-artifact@v4
+        with:
+          name: dashboard-build
+          path: dashboard-build
+
+      - name: Prepare app bundle
+        run: |
+          mkdir -p app-bundle/gateway app-bundle/dashboard
+          mv build app-bundle/gateway/
+          mv package.json package-lock.json app-bundle/gateway/ 2>/dev/null || true
+          mv dashboard-build/* app-bundle/dashboard/
+          rmdir dashboard-build 2>/dev/null || true
+
+      - name: Upload entire app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-gateway-app
+          path: app-bundle/

@@ -20,7 +20,51 @@ export OPENAI_API_KEY=sk-...
 npm run dev
 ```
 
-Gateway runs at `http://localhost:3002`. Use it as the base URL for OpenAI clients:
+Gateway runs at `http://localhost:3002`.
+
+### React chat dashboard
+
+A React dashboard to chat with the agent (streaming, provider/model/key in sidebar):
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. Ensure the gateway is running on port 3002; the dashboard proxies `/v1`, `/api`, `/auth`, and `/health` to it.
+
+### SSO (optional)
+
+With Google OAuth, users sign in once; their API key and provider/model are saved per user so they can chat and view usage without re-entering credentials.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth 2.0 Client ID (Web application). Add redirect URI: `http://localhost:3002/auth/callback` (or your gateway URL in production).
+2. Set env when starting the gateway:
+   - `GOOGLE_CLIENT_ID` – OAuth client ID  
+   - `GOOGLE_CLIENT_SECRET` – OAuth client secret  
+   - `JWT_SECRET` or `SESSION_SECRET` – secret to sign session tokens (defaults to a placeholder)  
+   - `DASHBOARD_URL` – where the React app runs (e.g. `http://localhost:5173`)  
+   - `GATEWAY_PUBLIC_URL` – public URL of the gateway (e.g. `http://localhost:3002`) for OAuth redirect_uri
+3. In the dashboard, **Sign in with Google** appears; after login, users add their API key once in **Settings**. Credentials are stored on the gateway (in-memory by default) and used for chat and usage.
+
+### Database (optional)
+
+By default, user settings, cost totals, and prompt log are kept in memory and lost on restart. To persist them, set a SQLite file path:
+
+```bash
+export DATABASE_PATH=./data/gateway.sqlite
+```
+
+Then install the optional dependency and run the gateway:
+
+```bash
+npm install better-sqlite3   # optional; needed only when using DATABASE_PATH
+npm run dev
+```
+
+On startup you’ll see either `Storage: SQLite (persistent)` or `Storage: in-memory (set DATABASE_PATH for persistence)`.
+
+Use it as the base URL for OpenAI clients:
 
 ```bash
 curl http://localhost:3002/v1/chat/completions \
@@ -41,6 +85,7 @@ curl http://localhost:3002/v1/chat/completions \
 | `AI_GATEWAY_RETRY_DELAY_MS` | Base retry delay (exponential backoff) | `1000` |
 | `AI_GATEWAY_PROMPT_LOGGING` | Set to `false` to disable prompt log | `true` |
 | `AI_GATEWAY_MODEL_ROUTES` | Model routing: `modelId:baseUrl,modelId2:baseUrl2` | - |
+| `DATABASE_PATH` / `DB_PATH` | SQLite file path for persistent user settings, costs, and prompt log | - (in-memory) |
 
 ## Model routing
 

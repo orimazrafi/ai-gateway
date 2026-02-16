@@ -17,17 +17,5 @@ export function estimateCost(
   return (inputTokens / 1000) * cost.input + (outputTokens / 1000) * cost.output;
 }
 
-/** In-memory cost store: key (e.g. api key) -> total cost USD */
-const costByKey = new Map<string, number>();
-
-export function recordCost(key: string, usd: number): void {
-  costByKey.set(key, (costByKey.get(key) ?? 0) + usd);
-}
-
-export function getCostByKey(key: string): number {
-  return costByKey.get(key) ?? 0;
-}
-
-export function getAllCosts(): Record<string, number> {
-  return Object.fromEntries(costByKey);
-}
+/** Cost store: key (e.g. api key) -> total cost USD. Backed by in-memory or SQLite when DATABASE_PATH is set. */
+export { recordCost, getCostByKey, getAllCosts } from "./db.js";

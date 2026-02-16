@@ -1,17 +1,39 @@
+import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import { config } from "./config.js";
+import { initDb, isUsingDatabase } from "./db.js";
 import { checkRateLimit } from "./rateLimit.js";
 import { resolveUpstream } from "./router.js";
 import { withRetry } from "./retry.js";
 import { pipeStream } from "./streaming.js";
 import { estimateCost, recordCost, getCostByKey, getAllCosts } from "./cost.js";
 import { appendPromptLog, getPromptLog } from "./promptLog.js";
+import {
+  isAuthEnabled,
+  getLoginRedirectUrl,
+  exchangeCodeForUser,
+  verifyGoogleIdToken,
+  signToken,
+  verifyToken,
+  getDashboardRedirectWithToken,
+} from "./auth.js";
+import { getUserSettings, setUserSettings } from "./authStore.js";
+
+initDb();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.join(__dirname, "..", "public");
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
+
+/** Dashboard UI (serves public/index.html at /) */
+app.use(express.static(publicDir));
 
 /** Observability: request id and timing */
 app.use((req, res, next) => {
@@ -45,21 +67,162 @@ app.use((req, res, next) => {
   next();
 });
 
+/** Auth: SSO config for dashboard */
+app.get("/auth/config", (_req, res) => {
+  const enabled = isAuthEnabled();
+  const baseUrl = process.env.GATEWAY_PUBLIC_URL || `http://localhost:${config.port}`;
+  res.json({
+    ssoEnabled: enabled,
+    loginUrl: enabled ? `${baseUrl}/auth/login` : null,
+  });
+});
+
+/** Auth: verify Google One Tap ID token, return our JWT */
+app.post("/auth/verify-id-token", express.json(), async (req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(503).json({ error: "SSO not configured" });
+    return;
+  }
+  const credential = (req.body as { credential?: string })?.credential;
+  if (!credential || typeof credential !== "string") {
+    res.status(400).json({ error: "Missing credential" });
+    return;
+  }
+  const user = await verifyGoogleIdToken(credential);
+  if (!user) {
+    res.status(401).json({ error: "Invalid credential" });
+    return;
+  }
+  const token = signToken(user);
+  res.json({ token });
+});
+
+/** Auth: SSO login redirect */
+app.get("/auth/login", (_req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(503).json({ error: "SSO not configured", message: "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET" });
+    return;
+  }
+  res.redirect(getLoginRedirectUrl());
+});
+
+/** Auth: OAuth callback → JWT → redirect to dashboard */
+app.get("/auth/callback", async (req, res) => {
+  if (!isAuthEnabled()) {
+    res.redirect(process.env.DASHBOARD_URL || "http://localhost:5173");
+    return;
+  }
+  const code = req.query.code as string | undefined;
+  if (!code) {
+    res.redirect((process.env.DASHBOARD_URL || "http://localhost:5173") + "?error=no_code");
+    return;
+  }
+  const user = await exchangeCodeForUser(code);
+  if (!user) {
+    res.redirect((process.env.DASHBOARD_URL || "http://localhost:5173") + "?error=auth_failed");
+    return;
+  }
+  const token = signToken(user);
+  res.redirect(getDashboardRedirectWithToken(token));
+});
+
+function getSessionToken(req: express.Request): string | undefined {
+  const raw = req.headers["x-session-token"] ?? req.headers["authorization"];
+  const s = Array.isArray(raw) ? raw[0] : raw;
+  return typeof s === "string" ? s.replace(/^Bearer\s+/i, "").trim() : undefined;
+}
+
+/** Auth: current user + saved settings (masked) */
+app.get("/auth/me", (req, res) => {
+  const token = getSessionToken(req);
+  if (!token) {
+    res.status(401).json({ error: "unauthorized", message: "Missing session token" });
+    return;
+  }
+  const user = verifyToken(token);
+  if (!user) {
+    res.status(401).json({ error: "unauthorized", message: "Invalid or expired token" });
+    return;
+  }
+  const settings = getUserSettings(user.id);
+  res.json({
+    user: { id: user.id, email: user.email, name: user.name, picture: user.picture },
+    settings: settings
+      ? {
+          provider: settings.provider ?? "",
+          upstream: settings.upstream ?? "",
+          model: settings.model ?? "gpt-3.5-turbo",
+          hasApiKey: Boolean(settings.apiKey?.trim()),
+        }
+      : { provider: "", upstream: "", model: "gpt-3.5-turbo", hasApiKey: false },
+  });
+});
+
+/** Auth: save user settings (provider, model, apiKey) */
+app.post("/auth/settings", (req, res) => {
+  const token = getSessionToken(req);
+  if (!token) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const user = verifyToken(token);
+  if (!user) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const body = req.body as { provider?: string; upstream?: string; model?: string; apiKey?: string };
+  setUserSettings(user.id, {
+    provider: body.provider,
+    upstream: body.upstream,
+    model: body.model,
+    apiKey: body.apiKey,
+  });
+  res.json({ ok: true });
+});
+
 /** OpenAI-style chat completions proxy */
 app.all("/v1/chat/completions", async (req, res) => {
   const body = req.body as { model?: string; stream?: boolean; messages?: unknown[] };
-  const model = body?.model ?? "gpt-3.5-turbo";
+  let model = body?.model ?? "gpt-3.5-turbo";
   const stream = body?.stream === true;
-  const { baseUrl, apiKey } = resolveUpstream(model);
 
-  const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+  const sessionToken = (req.headers["x-session-token"] as string)?.trim();
+  const authUser = sessionToken ? verifyToken(sessionToken) : null;
+
+  let dynamicUpstream = (req.headers["x-ai-gateway-upstream"] as string)?.trim();
+  let apiKey: string | undefined;
+  let keyHint = getKeyHint(req);
+
+  if (authUser) {
+    const stored = getUserSettings(authUser.id);
+    if (stored?.apiKey?.trim()) {
+      apiKey = stored.apiKey.trim();
+      keyHint = `user:${authUser.email}`;
+      if (!dynamicUpstream && stored.upstream?.trim()) dynamicUpstream = stored.upstream.trim();
+      if (stored.model?.trim()) model = stored.model;
+    }
+  }
+
+  if (!apiKey) {
+    const serverApiKey = resolveUpstream(model).apiKey;
+    const authHeader = req.headers["authorization"] as string | undefined;
+    const clientKey = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : undefined;
+    apiKey = clientKey || serverApiKey;
+  }
+
+  const baseUrl = dynamicUpstream
+    ? dynamicUpstream.replace(/\/$/, "")
+    : resolveUpstream(model).baseUrl.replace(/\/$/, "");
+
+  const url = `${baseUrl}/chat/completions`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
     ...(req.headers["x-api-key"] && { "X-API-Key": req.headers["x-api-key"] as string }),
   };
 
-  const keyHint = getKeyHint(req);
   const requestPreview = body.messages
     ? JSON.stringify(body.messages).slice(0, 200)
     : undefined;
@@ -145,6 +308,24 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", ts: Date.now() });
 });
 
-app.listen(config.port, () => {
+/** API info for clients that want endpoint list */
+app.get("/api", (_req, res) => {
+  res.json({
+    name: "AI Gateway",
+    endpoints: {
+      health: "GET /health",
+      chat: "POST /v1/chat/completions",
+      costs: "GET /api/costs",
+      promptLog: "GET /api/prompt-log?limit=100",
+    },
+  });
+});
+
+app.listen(config.port, "0.0.0.0", () => {
   console.log(`AI Gateway listening on http://localhost:${config.port}`);
+  if (isUsingDatabase()) {
+    console.log("Storage: SQLite (persistent)");
+  } else {
+    console.log("Storage: in-memory (set DATABASE_PATH for persistence)");
+  }
 });
