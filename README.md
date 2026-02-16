@@ -34,6 +34,66 @@ npm run dev
 
 Open `http://localhost:5173`. Ensure the gateway is running on port 3002; the dashboard proxies `/v1`, `/api`, `/auth`, and `/health` to it.
 
+### Deploy to the internet (via GitHub)
+
+You can have the app deploy automatically when you **push to GitHub** in two ways:
+
+**Option A – Connect the repo (easiest)**  
+No Actions secrets needed.
+
+1. **Gateway:** [Railway](https://railway.app) or [Render](https://render.com) → New Project → **Deploy from GitHub** → select this repo. Set env vars (see table below). Every push to `main` will build and deploy the gateway.
+2. **Dashboard:** [Vercel](https://vercel.com) → Add New Project → **Import** this repo. Set **Root Directory** to `dashboard`, add env **GATEWAY_URL** = your gateway URL. Every push to `main` will build and deploy the dashboard.
+
+**Option B – Deploy from GitHub Actions**  
+Uses the `Deploy` workflow in this repo.
+
+1. In **Vercel**: create a project (root = `dashboard`), add **GATEWAY_URL** in project env. Copy your **Vercel token** ([account/tokens](https://vercel.com/account/tokens)), **Org ID** and **Project ID** (project Settings → General).
+2. In **GitHub**: repo → **Settings → Secrets and variables → Actions**. Add:
+   - `VERCEL_TOKEN`
+   - `VERCEL_ORG_ID`
+   - `VERCEL_PROJECT_ID`
+3. Push to `main`. The **Deploy** workflow runs and deploys the dashboard to Vercel.  
+   (Gateway: still use Option A — connect the repo in Railway/Render so they deploy on push.)
+
+Either way, you get **upload via GitHub**: push to `main` → gateway and dashboard deploy to the internet.
+
+---
+
+**Manual / one-off deploy**
+
+You need two URLs: one for the **gateway** (API + auth) and one for the **dashboard** (Next.js). Deploy the gateway first, then the dashboard.
+
+**1. Deploy the gateway** (Railway, Render, Fly.io, or any Node/Docker host)
+
+- **Railway:** [railway.app](https://railway.app) → New Project → Deploy from GitHub (this repo). Set **Root Directory** to `/` (repo root). Add env vars (see table below). Railway will use the `Dockerfile` or run `npm run build && npm start`; set **Start Command** to `node build/index.js` and **Build Command** to `npm run build` if not using Docker. Note the public URL (e.g. `https://ai-gateway-xxx.up.railway.app`).
+- **Render:** [render.com](https://render.com) → New Web Service → Connect this repo. Root directory: leave blank. Build: `npm install && npm run build`. Start: `node build/index.js`. Add the same env vars. Set **PORT** to what Render provides (e.g. `10000`) or leave default; Render sets `PORT` automatically.
+- **Docker:** `docker build -t ai-gateway . && docker run -p 3002:3002 -e OPENAI_API_KEY=sk-... ai-gateway`. Expose the container on your server and put a reverse proxy (e.g. Caddy, nginx) in front with HTTPS.
+
+Set at least:
+
+| Env (gateway) | Example |
+|---------------|--------|
+| `PORT` | `3002` (or host’s assigned port) |
+| `OPENAI_API_KEY` or `AI_GATEWAY_API_KEY` | Your upstream API key |
+| `GATEWAY_PUBLIC_URL` | `https://your-gateway-url.up.railway.app` |
+| `DASHBOARD_URL` | Set in step 2 after deploying the dashboard |
+
+For SSO (Google sign-in), also set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `JWT_SECRET`, and add the gateway callback URL in Google Console (e.g. `https://your-gateway-url.up.railway.app/auth/callback`).
+
+**2. Deploy the dashboard** (Vercel)
+
+- Go to [vercel.com](https://vercel.com) → Add New Project → Import this GitHub repo.
+- Set **Root Directory** to `dashboard` (click Edit, set to `dashboard`).
+- Add **Environment Variable**: `GATEWAY_URL` = your gateway URL from step 1 (e.g. `https://ai-gateway-xxx.up.railway.app`). Use this for **Production**, and optionally Preview.
+- Deploy. Vercel will build the Next.js app and give you a URL (e.g. `https://ai-gateway-dashboard.vercel.app`).
+
+**3. Point the gateway at the dashboard**
+
+- In the gateway’s env, set **`DASHBOARD_URL`** to your Vercel URL (e.g. `https://ai-gateway-dashboard.vercel.app`). This is used for OAuth redirects and CORS.
+- If you use Google SSO, in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) add the gateway callback URL: `https://your-gateway-url/auth/callback`.
+
+You can now open the dashboard URL in a browser; it will call your gateway on the internet.
+
 ### SSO (optional)
 
 With Google OAuth, users sign in once; their API key and provider/model are saved per user so they can chat and view usage without re-entering credentials.
