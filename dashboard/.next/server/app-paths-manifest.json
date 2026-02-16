@@ -1,3 +1,4 @@
 {
+  "/gateway-auth-config/route": "app/gateway-auth-config/route.js",
   "/page": "app/page.js"
 }

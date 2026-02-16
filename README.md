@@ -115,22 +115,21 @@ You can now open the dashboard URL in a browser; it will call your gateway on th
 
 With Google OAuth, users sign in once; their API key and provider/model are saved per user so they can chat and view usage without re-entering credentials.
 
-1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth 2.0 Client ID (Web application). Add redirect URI: `http://localhost:3002/auth/callback` (or your gateway URL in production, e.g. `https://ai-gateway.up.railway.app/auth/callback`).
-2. Set env when starting the gateway:
-   - `GOOGLE_CLIENT_ID` – OAuth client ID  
-   - `GOOGLE_CLIENT_SECRET` – OAuth client secret (if you **regenerate** the secret in Google Console, you must update this on Railway or the gateway will get "invalid client" when users sign in)  
-   - `JWT_SECRET` or `SESSION_SECRET` – secret to sign session tokens (defaults to a placeholder)  
-   - `DASHBOARD_URL` – where the dashboard runs (e.g. your Vercel URL)  
-   - `GATEWAY_PUBLIC_URL` – public URL of the gateway (e.g. `https://ai-gateway.up.railway.app`) for OAuth redirect_uri
-3. In the dashboard, **Sign in with Google** appears; after login, users add their API key once in **Settings**. Credentials are stored on the gateway (in-memory by default) and used for chat and usage.
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth 2.0 Client ID (Web application).
+   - **Authorized redirect URIs:** add the **dashboard** callback (where Google sends the user after login):
+     - Local: `http://localhost:3000/auth/callback` (or your Next.js dev port)
+     - Production: `https://<your-dashboard-host>/auth/callback` (e.g. `https://ai-gateway-azure.vercel.app/auth/callback`)
+   - **Authorized JavaScript origins:** add the dashboard origin (no path): e.g. `http://localhost:3000` and `https://ai-gateway-azure.vercel.app`
+2. Set env when starting the **gateway** (e.g. on Railway): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `JWT_SECRET` or `SESSION_SECRET`, and **`DASHBOARD_URL`** = full dashboard URL (e.g. `https://ai-gateway-azure.vercel.app`). The gateway uses `DASHBOARD_URL/auth/callback` as the OAuth redirect_uri when talking to Google.
+3. The dashboard has a real route at **`/auth/callback`** (`app/auth/callback/route.ts`). After login, Google redirects there; the dashboard then sends the user to the gateway to exchange the code and redirect back with the token.
 
 **SSO checklist (if the button doesn’t show or login fails):**
 
 | Where | What to check |
 |-------|----------------|
 | **Vercel** | Only `GATEWAY_URL` set (no `NEXT_PUBLIC_GATEWAY_URL`). Redeploy with “Clear build cache” if you changed env. |
-| **Railway (gateway)** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (must match the secret in Google Console; if you created a new secret, paste it here), `DASHBOARD_URL`, `GATEWAY_PUBLIC_URL`. Redeploy after changing. |
-| **Google Console** | Under your OAuth client → Authorized redirect URIs: exactly `https://<your-gateway-host>/auth/callback` (e.g. `https://ai-gateway.up.railway.app/auth/callback`). |
+| **Railway (gateway)** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `DASHBOARD_URL` (full dashboard URL, no trailing slash). Redeploy after changing. |
+| **Google Console** | Authorized redirect URIs: dashboard URL + `/auth/callback` (e.g. `https://ai-gateway-azure.vercel.app/auth/callback`). Authorized JavaScript origins: dashboard origin (e.g. `https://ai-gateway-azure.vercel.app`). |
 
 ### Database (optional)
 

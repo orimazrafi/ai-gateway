@@ -42,9 +42,14 @@ export async function verifyGoogleIdToken(credential: string): Promise<AuthUser 
   }
 }
 
+/** Redirect URI for Google OAuth: where Google sends the user after login. Use dashboard so Next.js has a real route. */
+function getRedirectUri(): string {
+  const dashboard = process.env.DASHBOARD_URL || "http://localhost:5173";
+  return `${dashboard.replace(/\/$/, "")}/auth/callback`;
+}
+
 export function getLoginRedirectUrl(): string {
-  const baseUrl = process.env.GATEWAY_PUBLIC_URL || `http://localhost:${config.port}`;
-  const redirectUri = `${baseUrl}/auth/callback`;
+  const redirectUri = getRedirectUri();
   const scope = encodeURIComponent("openid email profile");
   return (
     "https://accounts.google.com/o/oauth2/v2/auth?" +
@@ -58,8 +63,7 @@ export function getLoginRedirectUrl(): string {
 }
 
 export async function exchangeCodeForUser(code: string): Promise<AuthUser | null> {
-  const baseUrl = process.env.GATEWAY_PUBLIC_URL || `http://localhost:${config.port}`;
-  const redirectUri = `${baseUrl}/auth/callback`;
+  const redirectUri = getRedirectUri();
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
