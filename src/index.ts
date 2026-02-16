@@ -28,12 +28,23 @@ initDb();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, "..", "public");
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+const DASHBOARD_URL = process.env.DASHBOARD_URL || "http://localhost:5173";
 
-/** Dashboard UI (serves public/index.html at /) */
-app.use(express.static(publicDir));
+const app = express();
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      if (origin === DASHBOARD_URL) return cb(null, true);
+      if (origin.endsWith(".vercel.app")) return cb(null, true);
+      if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:"))
+        return cb(null, true);
+      return cb(null, false);
+    },
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: "2mb" }));
 
 /** Observability: request id and timing */
 app.use((req, res, next) => {
@@ -320,6 +331,9 @@ app.get("/api", (_req, res) => {
     },
   });
 });
+
+/** Dashboard UI (serves public/index.html at /) — after API/auth so /auth/config etc. are never served as static */
+app.use(express.static(publicDir));
 
 app.listen(config.port, "0.0.0.0", () => {
   console.log(`AI Gateway listening on http://localhost:${config.port}`);
