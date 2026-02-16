@@ -1,3 +1,13 @@
+/** Base URL for gateway API. Set NEXT_PUBLIC_GATEWAY_URL on Vercel so the dashboard calls the gateway directly. */
+const GATEWAY_BASE =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GATEWAY_URL)
+    ? process.env.NEXT_PUBLIC_GATEWAY_URL.replace(/\/$/, '')
+    : ''
+
+function apiUrl(path: string): string {
+  return GATEWAY_BASE ? `${GATEWAY_BASE}${path.startsWith('/') ? path : `/${path}`}` : path
+}
+
 export interface ChatOptions {
   /** When using SSO, pass session token and omit apiKey */
   sessionToken?: string
@@ -23,7 +33,7 @@ export async function chatStream(
   }
   if (opts.upstream) headers['X-AI-Gateway-Upstream'] = opts.upstream
 
-  const res = await fetch('/v1/chat/completions', {
+  const res = await fetch(apiUrl('/v1/chat/completions'), {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -78,7 +88,7 @@ export async function chatNonStream(opts: ChatOptions): Promise<string> {
   else if (opts.apiKey) headers['Authorization'] = `Bearer ${opts.apiKey}`
   if (opts.upstream) headers['X-AI-Gateway-Upstream'] = opts.upstream
 
-  const res = await fetch('/v1/chat/completions', {
+  const res = await fetch(apiUrl('/v1/chat/completions'), {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -111,7 +121,7 @@ export async function validateCredentials(opts: ValidateCredentialsOptions): Pro
   }
   if (opts.upstream) headers['X-AI-Gateway-Upstream'] = opts.upstream
 
-  const res = await fetch('/v1/chat/completions', {
+  const res = await fetch(apiUrl('/v1/chat/completions'), {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -130,7 +140,7 @@ export async function validateCredentials(opts: ValidateCredentialsOptions): Pro
 }
 
 export async function fetchCosts(): Promise<Record<string, number>> {
-  const res = await fetch('/api/costs')
+  const res = await fetch(apiUrl('/api/costs'))
   if (!res.ok) throw new Error(res.statusText)
   return res.json()
 }
@@ -147,14 +157,14 @@ export interface PromptLogEntry {
 }
 
 export async function fetchPromptLog(limit = 50): Promise<PromptLogEntry[]> {
-  const res = await fetch(`/api/prompt-log?limit=${limit}`)
+  const res = await fetch(apiUrl(`/api/prompt-log?limit=${limit}`))
   if (!res.ok) throw new Error(res.statusText)
   return res.json()
 }
 
 /** Auth */
 export async function getAuthConfig(): Promise<{ ssoEnabled: boolean; loginUrl: string | null }> {
-  const res = await fetch('/auth/config')
+  const res = await fetch(apiUrl('/auth/config'))
   if (!res.ok) return { ssoEnabled: false, loginUrl: null }
   return res.json()
 }
@@ -174,7 +184,7 @@ export interface AuthSettings {
 }
 
 export async function getMe(sessionToken: string): Promise<{ user: AuthUser; settings: AuthSettings }> {
-  const res = await fetch('/auth/me', {
+  const res = await fetch(apiUrl('/auth/me'), {
     headers: { 'X-Session-Token': sessionToken },
   })
   if (!res.ok) throw new Error('Session invalid')
@@ -185,7 +195,7 @@ export async function saveSettings(
   sessionToken: string,
   body: { provider?: string; upstream?: string; model?: string; apiKey?: string }
 ): Promise<void> {
-  const res = await fetch('/auth/settings', {
+  const res = await fetch(apiUrl('/auth/settings'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken },
     body: JSON.stringify(body),
@@ -194,5 +204,5 @@ export async function saveSettings(
 }
 
 export function getLoginUrl(): string {
-  return '/auth/login'
+  return GATEWAY_BASE ? `${GATEWAY_BASE}/auth/login` : '/auth/login'
 }
