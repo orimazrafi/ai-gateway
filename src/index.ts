@@ -2,7 +2,6 @@ import "dotenv/config";
 import path from "path";
 import { fileURLToPath } from "url";
 import express from "express";
-import cors from "cors";
 import fetch from "node-fetch";
 import { config } from "./config.js";
 import { initDb, isUsingDatabase } from "./db.js";
@@ -30,20 +29,30 @@ const publicDir = path.join(__dirname, "..", "public");
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || "http://localhost:5173";
 
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (origin === DASHBOARD_URL) return true;
+  if (origin.endsWith(".vercel.app")) return true;
+  if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) return true;
+  return false;
+}
+
 const app = express();
-app.use(
-  cors({
-    origin(origin, cb) {
-      if (!origin) return cb(null, true);
-      if (origin === DASHBOARD_URL) return cb(null, true);
-      if (origin.endsWith(".vercel.app")) return cb(null, true);
-      if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:"))
-        return cb(null, true);
-      return cb(null, false);
-    },
-    credentials: true,
-  })
-);
+// CORS: allow dashboard origin so browser can fetch /auth/config, /api/* from Vercel
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string | undefined;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else if (!origin) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Session-Token, X-Api-Key, X-AI-Gateway-Upstream");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  next();
+});
 app.use(express.json({ limit: "2mb" }));
 
 /** Observability: request id and timing */
