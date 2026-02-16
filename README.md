@@ -94,18 +94,28 @@ For SSO (Google sign-in), also set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `
 
 You can now open the dashboard URL in a browser; it will call your gateway on the internet.
 
+**If you still see CORS or "fetch to ai-gateway.up.railway.app blocked":** The browser must not call the gateway directly. (1) In Vercel → Settings → Environment Variables, **remove** `NEXT_PUBLIC_GATEWAY_URL` if it exists (only `GATEWAY_URL` should be set). (2) Redeploy: Deployments → … → Redeploy, and if available enable **Clear build cache**. (3) Hard-refresh the dashboard (Ctrl+Shift+R) or open it in an incognito window so you get the new bundle.
+
 ### SSO (optional)
 
 With Google OAuth, users sign in once; their API key and provider/model are saved per user so they can chat and view usage without re-entering credentials.
 
-1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth 2.0 Client ID (Web application). Add redirect URI: `http://localhost:3002/auth/callback` (or your gateway URL in production).
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth 2.0 Client ID (Web application). Add redirect URI: `http://localhost:3002/auth/callback` (or your gateway URL in production, e.g. `https://ai-gateway.up.railway.app/auth/callback`).
 2. Set env when starting the gateway:
    - `GOOGLE_CLIENT_ID` – OAuth client ID  
-   - `GOOGLE_CLIENT_SECRET` – OAuth client secret  
+   - `GOOGLE_CLIENT_SECRET` – OAuth client secret (if you **regenerate** the secret in Google Console, you must update this on Railway or the gateway will get "invalid client" when users sign in)  
    - `JWT_SECRET` or `SESSION_SECRET` – secret to sign session tokens (defaults to a placeholder)  
-   - `DASHBOARD_URL` – where the React app runs (e.g. `http://localhost:5173`)  
-   - `GATEWAY_PUBLIC_URL` – public URL of the gateway (e.g. `http://localhost:3002`) for OAuth redirect_uri
+   - `DASHBOARD_URL` – where the dashboard runs (e.g. your Vercel URL)  
+   - `GATEWAY_PUBLIC_URL` – public URL of the gateway (e.g. `https://ai-gateway.up.railway.app`) for OAuth redirect_uri
 3. In the dashboard, **Sign in with Google** appears; after login, users add their API key once in **Settings**. Credentials are stored on the gateway (in-memory by default) and used for chat and usage.
+
+**SSO checklist (if the button doesn’t show or login fails):**
+
+| Where | What to check |
+|-------|----------------|
+| **Vercel** | Only `GATEWAY_URL` set (no `NEXT_PUBLIC_GATEWAY_URL`). Redeploy with “Clear build cache” if you changed env. |
+| **Railway (gateway)** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (must match the secret in Google Console; if you created a new secret, paste it here), `DASHBOARD_URL`, `GATEWAY_PUBLIC_URL`. Redeploy after changing. |
+| **Google Console** | Under your OAuth client → Authorized redirect URIs: exactly `https://<your-gateway-host>/auth/callback` (e.g. `https://ai-gateway.up.railway.app/auth/callback`). |
 
 ### Database (optional)
 
