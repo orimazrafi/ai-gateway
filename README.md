@@ -94,7 +94,22 @@ For SSO (Google sign-in), also set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `
 
 You can now open the dashboard URL in a browser; it will call your gateway on the internet.
 
-**If you still see CORS or "fetch to ai-gateway.up.railway.app blocked":** The browser must not call the gateway directly. (1) In Vercel → Settings → Environment Variables, **remove** `NEXT_PUBLIC_GATEWAY_URL` if it exists (only `GATEWAY_URL` should be set). (2) Redeploy: Deployments → … → Redeploy, and if available enable **Clear build cache**. (3) Hard-refresh the dashboard (Ctrl+Shift+R) or open it in an incognito window so you get the new bundle.
+**If you still see CORS or "fetch to ai-gateway.up.railway.app blocked":** The browser is running old JS. Do all of the following:
+
+1. **Deploy the latest code**  
+   Push your repo (with the dashboard that uses `/api/auth/config`) to the branch Vercel builds from. In Vercel → Deployments, wait for the **latest** deployment to finish (green check).
+
+2. **Env on Vercel**  
+   Settings → Environment Variables: set **`GATEWAY_URL`** to your gateway URL. **Delete** **`NEXT_PUBLIC_GATEWAY_URL`** if it exists.
+
+3. **Force a new build**  
+   Deployments → … on the latest deployment → **Redeploy** → enable **Clear build cache** if shown. Wait for the new build to complete.
+
+4. **Load the new bundle**  
+   Open the **production URL** of the dashboard (or the new deployment’s URL). Do a **hard refresh** (Ctrl+Shift+R / Cmd+Shift+R) or open the site in an **incognito/private** window so the browser doesn’t use cached JS.
+
+5. **Check in Network tab**  
+   Open DevTools → Network. Reload the page. The request for auth config should go to **`https://your-dashboard.vercel.app/api/auth/config`** (your Vercel host), **not** to `ai-gateway.up.railway.app`. If it still goes to Railway, the deployed app is still old — redeploy from the branch that has the `/api/auth/config` change and clear cache again.
 
 ### SSO (optional)
 

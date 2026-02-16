@@ -56,10 +56,10 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
-// Validate ../../app/api/auth/config/route.ts
+// Validate ../../app/gateway-auth-config/route.ts
 {
-  type __IsExpected<Specific extends RouteHandlerConfig<"/api/auth/config">> = Specific
-  const handler = {} as typeof import("../../app/api/auth/config/route.js")
+  type __IsExpected<Specific extends RouteHandlerConfig<"/gateway-auth-config">> = Specific
+  const handler = {} as typeof import("../../app/gateway-auth-config/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

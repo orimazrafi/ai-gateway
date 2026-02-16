@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 
 /**
  * Server-side proxy for gateway /auth/config.
- * Uses GATEWAY_URL at runtime so auth config works even if rewrites were built without it.
+ * Lives at /gateway-auth-config so it is NOT caught by the /api/:path* rewrite.
+ * Uses GATEWAY_URL at runtime.
  */
 export async function GET() {
   const gateway = process.env.GATEWAY_URL || 'http://localhost:3002'

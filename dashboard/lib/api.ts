@@ -157,9 +157,9 @@ export async function fetchPromptLog(limit = 50): Promise<PromptLogEntry[]> {
   return res.json()
 }
 
-/** Auth — config comes from our API route so it uses GATEWAY_URL at runtime (no rewrite/build-time dependency). */
+/** Auth — config from our proxy route (path chosen so it is not rewritten to the gateway). */
 export async function getAuthConfig(): Promise<{ ssoEnabled: boolean; loginUrl: string | null }> {
-  const res = await fetch('/api/auth/config')
+  const res = await fetch('/gateway-auth-config')
   if (!res.ok) return { ssoEnabled: false, loginUrl: null }
   return res.json()
 }
