@@ -42,12 +42,12 @@ You can have the app deploy automatically when you **push to GitHub** in two way
 No Actions secrets needed.
 
 1. **Gateway:** [Railway](https://railway.app) or [Render](https://render.com) → New Project → **Deploy from GitHub** → select this repo. Set env vars (see table below). Every push to `main` will build and deploy the gateway.
-2. **Dashboard:** [Vercel](https://vercel.com) → Add New Project → **Import** this repo. Set **Root Directory** to `dashboard`, add env **NEXT_PUBLIC_GATEWAY_URL** (and **GATEWAY_URL**) = your gateway URL. Every push to `main` will build and deploy the dashboard.
+2. **Dashboard:** [Vercel](https://vercel.com) → Add New Project → **Import** this repo. Set **Root Directory** to `dashboard`, add env **GATEWAY_URL** = your gateway URL. Every push to `main` will build and deploy the dashboard.
 
 **Option B – Deploy from GitHub Actions**  
 Uses the `Deploy` workflow in this repo.
 
-1. In **Vercel**: create a project (root = `dashboard`), add **NEXT_PUBLIC_GATEWAY_URL** and **GATEWAY_URL** in project env. Copy your **Vercel token** ([account/tokens](https://vercel.com/account/tokens)), **Org ID** and **Project ID** (project Settings → General).
+1. In **Vercel**: create a project (root = `dashboard`), add **GATEWAY_URL** in project env. Copy your **Vercel token** ([account/tokens](https://vercel.com/account/tokens)), **Org ID** and **Project ID** (project Settings → General).
 2. In **GitHub**: repo → **Settings → Secrets and variables → Actions**. Add:
    - `VERCEL_TOKEN`
    - `VERCEL_ORG_ID`
@@ -84,9 +84,7 @@ For SSO (Google sign-in), also set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `
 
 - Go to [vercel.com](https://vercel.com) → Add New Project → Import this GitHub repo.
 - Set **Root Directory** to `dashboard` (click Edit, set to `dashboard`).
-- Add **Environment Variables** (Production, and optionally Preview):
-  - **`NEXT_PUBLIC_GATEWAY_URL`** = your gateway URL (e.g. `https://ai-gateway-xxx.up.railway.app`). The dashboard uses this in the browser to call the gateway; without it, `/auth/config` and API calls can 404.
-  - **`GATEWAY_URL`** = same value (used by Next.js rewrites when running locally or as fallback).
+- Add **Environment Variable**: **`GATEWAY_URL`** = your gateway URL (e.g. `https://ai-gateway-xxx.up.railway.app`) for **Production** (and optionally Preview). The dashboard uses relative URLs and Next.js rewrites proxy `/auth/*`, `/api/*`, `/v1/*` to the gateway, so the browser never calls the gateway directly (no CORS needed).
 - Deploy. Vercel will build the Next.js app and give you a URL (e.g. `https://ai-gateway-dashboard.vercel.app`).
 
 **3. Point the gateway at the dashboard**

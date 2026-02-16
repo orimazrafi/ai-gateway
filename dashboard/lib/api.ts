@@ -1,11 +1,6 @@
-/** Base URL for gateway API. Set NEXT_PUBLIC_GATEWAY_URL on Vercel so the dashboard calls the gateway directly. */
-const GATEWAY_BASE =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GATEWAY_URL)
-    ? process.env.NEXT_PUBLIC_GATEWAY_URL.replace(/\/$/, '')
-    : ''
-
+/** Use relative paths so the browser hits the same origin; Next.js rewrites proxy to the gateway (no CORS). */
 function apiUrl(path: string): string {
-  return GATEWAY_BASE ? `${GATEWAY_BASE}${path.startsWith('/') ? path : `/${path}`}` : path
+  return path.startsWith('/') ? path : `/${path}`
 }
 
 export interface ChatOptions {
@@ -204,5 +199,5 @@ export async function saveSettings(
 }
 
 export function getLoginUrl(): string {
-  return GATEWAY_BASE ? `${GATEWAY_BASE}/auth/login` : '/auth/login'
+  return '/auth/login'
 }
