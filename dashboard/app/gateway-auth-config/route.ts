@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server'
  * Lives at /gateway-auth-config so it is NOT caught by the /api/:path* rewrite.
  * Uses GATEWAY_URL at runtime.
  */
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const gateway = process.env.GATEWAY_URL || 'http://localhost:3002'
   const base = gateway.replace(/\/$/, '')

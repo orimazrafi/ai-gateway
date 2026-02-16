@@ -97,7 +97,7 @@ You can now open the dashboard URL in a browser; it will call your gateway on th
 **If you still see CORS or "fetch to ai-gateway.up.railway.app blocked":** The browser is running old JS. Do all of the following:
 
 1. **Deploy the latest code**  
-   Push your repo (with the dashboard that uses `/api/auth/config`) to the branch Vercel builds from. In Vercel → Deployments, wait for the **latest** deployment to finish (green check).
+   Push your repo (including **`dashboard/app/gateway-auth-config/route.ts`**) to the branch Vercel builds from. In Vercel → Deployments, wait for the **latest** deployment to finish (green check).
 
 2. **Env on Vercel**  
    Settings → Environment Variables: set **`GATEWAY_URL`** to your gateway URL. **Delete** **`NEXT_PUBLIC_GATEWAY_URL`** if it exists.
@@ -109,7 +109,7 @@ You can now open the dashboard URL in a browser; it will call your gateway on th
    Open the **production URL** of the dashboard (or the new deployment’s URL). Do a **hard refresh** (Ctrl+Shift+R / Cmd+Shift+R) or open the site in an **incognito/private** window so the browser doesn’t use cached JS.
 
 5. **Check in Network tab**  
-   Open DevTools → Network. Reload the page. The request for auth config should go to **`https://your-dashboard.vercel.app/api/auth/config`** (your Vercel host), **not** to `ai-gateway.up.railway.app`. If it still goes to Railway, the deployed app is still old — redeploy from the branch that has the `/api/auth/config` change and clear cache again.
+   Open DevTools → Network. Reload the page. The auth config request should go to **`https://your-dashboard.vercel.app/gateway-auth-config`** (your Vercel host). If you see **404 "Application not found"** on that request, the deployment does not include the route: ensure **`dashboard/app/gateway-auth-config/route.ts`** is committed and pushed, then in Vercel use **Redeploy** with **Clear build cache** and open the **new deployment’s** URL (not an old preview).
 
 ### SSO (optional)
 

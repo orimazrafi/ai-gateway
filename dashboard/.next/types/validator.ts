@@ -65,6 +65,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../app/ping/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/ping">> = Specific
+  const handler = {} as typeof import("../../app/ping/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 
 
 
